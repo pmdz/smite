@@ -58,6 +58,8 @@ class Client(object):
             if self.cipher is not None:
                 rep = self.cipher.encrypt(rep)
             rep = msgpack.unpackb(rep)
+            # TODO: check reply uid and raise exc eventually
+            # TODO: check if there is an error in reply
         else:
             self._socket.setsockopt(zmq.LINGER, 0)
             self._socket.close()

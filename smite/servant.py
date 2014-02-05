@@ -95,6 +95,7 @@ class Servant(object):
         socket.connect(self.backend_uri)
 
         # wait for variables to be set
+        # TODO: it's stupid, change it
         time.sleep(.2)
         thread_stats = self.stats['threads'][threading.current_thread().name]
         summary_stats = self.stats['summary']
