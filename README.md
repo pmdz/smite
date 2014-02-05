@@ -18,5 +18,5 @@ servant.run()
 
 client = smite.Client(host, port)
 msg = smite.Message('echo', 'foo')
-reply = client.send(msg)  # 'foo'
+client.send(msg)  # 'foo'
 ```
