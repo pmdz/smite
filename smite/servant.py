@@ -108,24 +108,26 @@ class Servant(object):
             id_ = socket.recv()
             if id_ == '__break__':
                 break
-            message = socket.recv()
+            msg = socket.recv()
 
             with self._lock:
                 increment_stat('received_messages')
 
             try:
-                message = self._process_message(message)
+                msg = self._process_message(msg)
             except:
                 increment_stat('malicious_messages')
                 # do not bother to reply if client sent some trash
                 continue
 
             try:
-                method = self.methods[message['_method']]
-                rep = method(*message['arg'], **message['kw'])
+                method = self.methods[msg['_method']]
+                rep = {'_result': method(*msg['args'], **msg['kwargs'])}
             except Exception:
                 increment_stat('exceptions')
                 rep = {'_error': 50, '_traceback': traceback.format_exc()}
+
+            rep['_uid'] = msg['_uid']
 
             socket.send(id_, zmq.SNDMORE)
             socket.send(self._process_reply(rep))
@@ -133,8 +135,8 @@ class Servant(object):
 
         socket.close()
 
-    def _process_message(self, message):
-        return msgpack.unpackb(message)
+    def _process_message(self, msg):
+        return msgpack.unpackb(msg)
 
     def _process_reply(self, rep):
         return msgpack.packb(rep)
@@ -146,8 +148,8 @@ class SecureServant(Servant):
         super(SecureServant, self).__init__(methods, threads_num)
         self.cipher = AESCipher(secret_key)
 
-    def _process_message(self, message):
-        return msgpack.unpackb(self.cipher.decrypt(message))
+    def _process_message(self, msg):
+        return msgpack.unpackb(self.cipher.decrypt(msg))
 
     def _process_reply(self, rep):
         return self.cipher.encrypt(msgpack.packb(rep))

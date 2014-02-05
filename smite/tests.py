@@ -53,3 +53,7 @@ def test_client_timeout():
     assert servant.stats['summary']['received_messages'] == 0
     assert servant.stats['summary']['malicious_messages'] == 0
     assert servant.stats['summary']['processed_messages'] == 0
+
+
+# TODO: restart server during message processing
+#   send try later message?

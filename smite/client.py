@@ -23,7 +23,7 @@ class Client(object):
         elif identity is not None:
             self._identity = identity
         elif identity is None:
-            self._identity = str(uuid.uuid1())
+            self._identity = uuid.uuid1().hex
 
         self.ctx = zmq.Context()
         self._create_socket()
@@ -40,8 +40,9 @@ class Client(object):
 
         msg = {
             '_method': msg.method,
-            'arg': msg.args,
-            'kw': msg.kwargs,
+            '_uid': uuid.uuid4().hex,
+            'args': msg.args,
+            'kwargs': msg.kwargs,
         }
 
         msg = msgpack.packb(msg)
