@@ -25,6 +25,7 @@ class Client(object):
         elif identity is None:
             self._identity = uuid.uuid1().hex
 
+        # TODO: is socket thread-safe?
         self.ctx = zmq.Context()
         self._create_socket()
         if secret_key is not None:
@@ -61,6 +62,8 @@ class Client(object):
             # TODO: check reply uid and raise exc eventually
             # TODO: check if there is an error in reply
         else:
+            # TODO: is it thread-safe? what about applications
+            #       with multiple clients instances?
             self._socket.setsockopt(zmq.LINGER, 0)
             self._socket.close()
             self._poll.unregister(self._socket)

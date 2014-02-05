@@ -107,6 +107,7 @@ class Servant(object):
 
         while True:
             id_ = socket.recv()
+            # TODO: make a list of allowed identities
             if id_ == '__break__':
                 break
             msg = socket.recv()
@@ -149,6 +150,8 @@ class SecureServant(Servant):
         super(SecureServant, self).__init__(methods, threads_num)
         self.cipher = AESCipher(secret_key)
 
+    # TODO: this inheritance thing is a bit silly,
+    #       pass 'message_processor' callable maybe?
     def _process_message(self, msg):
         return msgpack.unpackb(self.cipher.decrypt(msg))
 
