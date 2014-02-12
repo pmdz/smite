@@ -145,5 +145,7 @@ def test_exception_response():
     assert raised
 
     time.sleep(.1)
+    assert servant.stats['summary']['received_messages'] == 1
+    assert servant.stats['summary']['exceptions'] == 1
     servant.stop()
     servant_thread.join()
