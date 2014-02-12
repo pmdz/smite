@@ -1,5 +1,6 @@
 import time
 import threading
+import logging
 import traceback
 
 import zmq
@@ -107,13 +108,12 @@ class Servant(object):
 
         while True:
             id_ = socket.recv()
-            # TODO: make a list of allowed identities
+            # TODO: make an optional list of allowed identities
             if id_ == '__break__':
                 break
             msg = socket.recv()
 
-            with self._lock:
-                increment_stat('received_messages')
+            increment_stat('received_messages')
 
             try:
                 msg = self._process_message(msg)
