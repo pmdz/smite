@@ -70,7 +70,7 @@ class Client(object):
             self._create_socket()
             raise ClientTimeout
 
-        return rep
+        return rep['_result']
 
     def _create_socket(self):
         self._socket = self.ctx.socket(zmq.DEALER)

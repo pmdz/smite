@@ -1,3 +1,4 @@
+import uuid
 import time
 from threading import Thread
 
@@ -57,3 +58,54 @@ def test_client_timeout():
 
 # TODO: restart server during message processing
 #   send try later message?
+
+def test_multiple_clients():
+    from message import Message
+    from servant import Servant
+    from client import Client
+
+    host = '127.0.0.1'
+    port = 3000
+
+    def short_echo(text):
+        time.sleep(1)
+        return text
+
+    def long_echo(text):
+        time.sleep(2)
+        return text
+
+    servant = Servant({'short_echo': short_echo, 'long_echo': long_echo})
+    servant.bind(host, port)
+    servant_thread = Thread(target=servant.run)
+    servant_thread.start()
+
+    class send_msg(object):
+        def __init__(self, method_name):
+            self.method_name = method_name
+
+        def __call__(self):
+            client = Client(host, port)
+            txt = uuid.uuid4().hex
+            msg = Message(self.method_name, txt)
+            res = client.send(msg)
+            assert res == txt
+
+    client_threads = []
+    for method_name in ['short_echo', 'long_echo']:
+        thread = Thread(target=send_msg(method_name))
+        client_threads.append(thread)
+        thread.start()
+
+    # long echo takes 2 seconds
+    time.sleep(2.5)
+
+    assert servant.stats['summary']['received_messages'] == 2
+    assert servant.stats['summary']['processed_messages'] == 2
+    assert servant.stats['summary']['exceptions'] == 0
+
+    servant.stop()
+    servant_thread.join()
+
+    for client_thread in client_threads:
+        client_thread.join()
