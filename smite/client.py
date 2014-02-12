@@ -19,11 +19,11 @@ class Client(object):
         self._default_timeout = default_timeout
 
         if identity is not None and secret_key is not None:
-            self._identity = self.cipher.encrypt(identity)
+            self.identity = self.cipher.encrypt(identity)
         elif identity is not None:
-            self._identity = identity
+            self.identity = identity
         elif identity is None:
-            self._identity = uuid.uuid1().hex
+            self.identity = uuid.uuid1().hex
 
         # TODO: is socket thread-safe?
         self.ctx = zmq.Context()
@@ -74,7 +74,7 @@ class Client(object):
 
     def _create_socket(self):
         self._socket = self.ctx.socket(zmq.DEALER)
-        self._socket.setsockopt(zmq.IDENTITY, self._identity)
+        self._socket.setsockopt(zmq.IDENTITY, self.identity)
         self._poll = zmq.Poller()
         self._poll.register(self._socket, zmq.POLLIN)
         try:
