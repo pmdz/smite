@@ -1,4 +1,5 @@
 import uuid
+import logging
 
 import zmq
 import msgpack
@@ -11,10 +12,13 @@ from smite.exceptions import (
     MessageException,
 )
 
+log = logging.getLogger('smite.client')
+
 
 class Client(object):
 
-    def __init__(self, host, port, identity=None, secret_key=None, default_timeout=5):
+    def __init__(self, host, port, identity=None, secret_key=None,
+                 default_timeout=5):
         self.host = host
         self.port = port
         self._default_timeout = default_timeout
@@ -25,6 +29,8 @@ class Client(object):
             self.identity = identity
         elif identity is None:
             self.identity = uuid.uuid1().hex
+
+        log.info('Client identity set: {}'.format(self.identity))
 
         # TODO: is socket thread-safe?
         self.ctx = zmq.Context()
@@ -46,6 +52,7 @@ class Client(object):
             'args': msg.args,
             'kwargs': msg.kwargs,
         }
+        log.debug('Raw message: {}'.format(msg))
 
         msg = msgpack.packb(msg)
 
@@ -60,14 +67,17 @@ class Client(object):
             if self.cipher is not None:
                 rep = self.cipher.encrypt(rep)
             rep = msgpack.unpackb(rep)
+            log.debug('unpacked reply: {}'.format(rep))
             # TODO: check reply uid and raise exc eventually
             # TODO: check if there is an error in reply
             if '_error' in rep:
                 if rep['_error'] == 50:
+                    log.error(rep['_traceback'])
                     raise MessageException(rep['_exc_msg'], rep['_traceback'])
         else:
             # TODO: is it thread-safe? what about applications
             #       with multiple clients instances?
+            log.warn('Timeout ({} sec) reached. Recreating socket')
             self._socket.setsockopt(zmq.LINGER, 0)
             self._socket.close()
             self._poll.unregister(self._socket)
