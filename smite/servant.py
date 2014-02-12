@@ -125,9 +125,13 @@ class Servant(object):
             try:
                 method = self.methods[msg['_method']]
                 rep = {'_result': method(*msg['args'], **msg['kwargs'])}
-            except Exception:
+            except Exception, e:
                 increment_stat('exceptions')
-                rep = {'_error': 50, '_traceback': traceback.format_exc()}
+                rep = {
+                    '_error': 50,
+                    '_exc_msg': e.message if hasattr(e, 'message') else '',
+                    '_traceback': traceback.format_exc(),
+                }
 
             rep['_uid'] = msg['_uid']
 

@@ -109,3 +109,41 @@ def test_multiple_clients():
 
     for client_thread in client_threads:
         client_thread.join()
+
+
+def test_exception_response():
+    from message import Message
+    from servant import Servant
+    from client import Client
+    from exceptions import MessageException
+
+    host = '127.0.0.1'
+    port = 3000
+
+    exc_message = 'This is dummy exception message'
+
+    class DummyException(Exception):
+        pass
+
+    def raise_dummy_exc():
+        raise DummyException(exc_message)
+
+    servant = Servant({'raise_dummy_exc': raise_dummy_exc})
+    servant.bind(host, port)
+    servant_thread = Thread(target=servant.run)
+    servant_thread.start()
+
+    client = Client(host, port)
+
+    raised = False
+    try:
+        client.send(Message('raise_dummy_exc'))
+    except MessageException, e:
+        assert e.message == exc_message
+        raised = True
+
+    assert raised
+
+    time.sleep(.1)
+    servant.stop()
+    servant_thread.join()

@@ -8,6 +8,7 @@ from smite.aes_cipher import AESCipher
 from smite.exceptions import (
     ConnectionError,
     ClientTimeout,
+    MessageException,
 )
 
 
@@ -61,6 +62,9 @@ class Client(object):
             rep = msgpack.unpackb(rep)
             # TODO: check reply uid and raise exc eventually
             # TODO: check if there is an error in reply
+            if '_error' in rep:
+                if rep['_error'] == 50:
+                    raise MessageException(rep['_exc_msg'], rep['_traceback'])
         else:
             # TODO: is it thread-safe? what about applications
             #       with multiple clients instances?
