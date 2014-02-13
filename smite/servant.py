@@ -2,9 +2,12 @@ import time
 import threading
 import traceback
 import logging
+import inspect
+from types import ModuleType
 
 import zmq
 import msgpack
+from zope.dottedname.resolve import resolve
 
 from smite.aes_cipher import AESCipher
 from smite.exceptions import (
@@ -52,7 +55,7 @@ class Servant(object):
         self.threads_num = threads_num | self.threads_num
 
     def register_method(self, method, name=None):
-        if not hasattr(method, '__call__'):
+        if not callable(method):
             raise ValueError('{} is not callable'.format(method))
 
         if name is None:
@@ -63,6 +66,22 @@ class Servant(object):
                              .format(name))
 
         self.methods[name] = method
+
+    def expose_module(self, module):
+        if not isinstance(module, (str, ModuleType)):
+            raise ValueError('Invalid \'module\' argument type: {}'
+                             .format(type(module)))
+
+        if isinstance(module, str):
+            module = resolve(module)
+
+        module_functions = filter(
+            lambda fn: (fn[1].__module__ == module.__name__
+                        and not fn[0].startswith('_')),
+            inspect.getmembers(module, inspect.isfunction)
+        )
+        for fname, fn in module_functions:
+            self.register_method(fn, '{}.{}'.format(module.__name__, fname))
 
     def bind(self, host, port):
         self.ctx = zmq.Context()

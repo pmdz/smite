@@ -6,6 +6,7 @@ requires = [
     'pycrypto==2.6.1',
     'msgpack-python==0.4.0',
     'pyzmq==14.0.1',
+    'zope.dottedname==4.0.1',
 ]
 
 
