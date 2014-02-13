@@ -1,6 +1,7 @@
 import time
 import threading
 import traceback
+import logging
 
 import zmq
 import msgpack
@@ -21,6 +22,9 @@ _STATS_TMPL = {
     'malicious_messages': 0,
     'exceptions': 0,
 }
+
+
+log = logging.getLogger('smite.servant')
 
 
 class Servant(object):
@@ -65,12 +69,16 @@ class Servant(object):
         self.frontend = self.ctx.socket(zmq.ROUTER)
 
         try:
-            self.frontend.bind('tcp://{}:{}'.format(host, port))
+            uri = 'tcp://{}:{}'.format(host, port)
+            self.frontend.bind(uri)
+            log.info('Servant listening at {}'.format(uri))
         except zmq.error.ZMQError as e:
-            raise ServantBindError(
+            exc = ServantBindError(
                 'Cannot bind to {}:{} ({})'
                 .format(host, port, e.strerror)
             )
+            log.exception(exc)
+            raise exc
 
         self.backend = self.ctx.socket(zmq.DEALER)
         self.backend.bind(self.backend_uri)
@@ -138,6 +146,7 @@ class Servant(object):
             try:
                 id_, msg = self._recv(socket)
             except MessageRecvError:
+                increment_stat('malicious_messages')
                 continue
             except RoutineStop:
                 break
@@ -146,7 +155,9 @@ class Servant(object):
 
             try:
                 msg = msgpack.unpackb(msg)
+                log.info('Unpacked message: {}'.format(msg))
             except:
+                log.warn('Message unpack failed')
                 increment_stat('malicious_messages')
                 # do not bother to reply if client sent some trash
                 continue
@@ -165,6 +176,8 @@ class Servant(object):
             rep['_uid'] = msg['_uid']
 
             id_, rep = self._prepare_reply(id_, rep)
+            log.debug('reply id: {}'.format(id_))
+            log.info('reply: {}'.format(rep))
             socket.send(id_, zmq.SNDMORE)
             socket.send(rep)
             increment_stat('processed_messages')
@@ -190,8 +203,16 @@ class SecureServant(Servant):
 
     def _recv(self, socket):
         id_, msg = super(SecureServant, self)._recv(socket)
-        return self.cipher.decrypt(id_), self.cipher.decrypt(msg)
+        dec_id = self.cipher.decrypt(id_)
+        dec_msg = self.cipher.decrypt(msg)
+
+        log.debug('Decrypted ID: {}'.format(dec_id))
+        log.debug('Decrypted message: {}'.format(dec_msg))
+
+        if not dec_msg.endswith(dec_id):
+            raise MessageRecvError()
+        return id_, dec_msg[:-len(dec_id)]
 
     def _prepare_reply(self, id_, rep):
         id_, rep = super(SecureServant, self)._prepare_reply(id_, rep)
-        return self.cipher.encrypt(id_), self.cipher.encrypt(rep)
+        return id_, self.cipher.encrypt(rep)

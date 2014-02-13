@@ -21,30 +21,26 @@ class Client(object):
                  default_timeout=5):
         self.host = host
         self.port = port
+        self.identity = identity or uuid.uuid4().hex
         self._default_timeout = default_timeout
-
-        if identity is not None and secret_key is not None:
-            self.identity = self.cipher.encrypt(identity)
-        elif identity is not None:
-            self.identity = identity
-        elif identity is None:
-            self.identity = uuid.uuid1().hex
 
         log.info('Client identity set: {}'.format(self.identity))
 
-        # TODO: is socket thread-safe?
-        self.ctx = zmq.Context()
-        self._create_socket()
         if secret_key is not None:
             self.cipher = AESCipher(secret_key)
+            self._orig_identity = self.identity
+            self.identity = self.cipher.encrypt(self.identity)
         else:
             self.cipher = None
 
+        self.ctx = zmq.Context()
+        self._create_socket()
+
     def send(self, msg, timeout=None):
-        if timeout is None:
-            timeout = self._default_timeout
         if not isinstance(msg, Message):
             raise TypeError('\'msg\' argument should be type of \'Message\'')
+        if timeout is None:
+            timeout = self._default_timeout
 
         msg = {
             '_method': msg.method,
@@ -57,6 +53,9 @@ class Client(object):
         msg = msgpack.packb(msg)
 
         if self.cipher is not None:
+            #self._socket.setsockopt(zmq.IDENTITY,
+                                    #self.cipher.encrypt(self.identity))
+            msg += self._orig_identity
             msg = self.cipher.encrypt(msg)
 
         self._socket.send(msg)
@@ -65,7 +64,7 @@ class Client(object):
         if sockets.get(self._socket) == zmq.POLLIN:
             rep = self._socket.recv()
             if self.cipher is not None:
-                rep = self.cipher.encrypt(rep)
+                rep = self.cipher.decrypt(rep)
             rep = msgpack.unpackb(rep)
             log.debug('unpacked reply: {}'.format(rep))
             # TODO: check reply uid and raise exc eventually
@@ -77,7 +76,8 @@ class Client(object):
         else:
             # TODO: is it thread-safe? what about applications
             #       with multiple clients instances?
-            log.warn('Timeout ({} sec) reached. Recreating socket')
+            log.warn('Message timeout ({} sec) reached -> recreating socket'
+                     .format(timeout))
             self._socket.setsockopt(zmq.LINGER, 0)
             self._socket.close()
             self._poll.unregister(self._socket)

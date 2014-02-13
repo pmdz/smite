@@ -149,3 +149,28 @@ def test_exception_response():
     assert servant.stats['summary']['exceptions'] == 1
     servant.stop()
     servant_thread.join()
+
+
+def test_encrypted_messaging():
+    from message import Message
+    from servant import SecureServant
+    from client import Client
+
+    host = '127.0.0.1'
+    port = 3000
+    secret = 'foobar'
+
+    def multipl(num1, num2):
+        return num1 * num2
+
+    servant = SecureServant([multipl], secret)
+    servant.bind(host, port)
+    servant_thread = Thread(target=servant.run)
+    servant_thread.start()
+
+    client = Client(host, port, secret_key=secret)
+    rep = client.send(Message('multipl', 2, 4))
+    assert rep == 8
+
+    servant.stop()
+    servant_thread.join()
