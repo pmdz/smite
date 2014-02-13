@@ -1,13 +1,16 @@
 import time
 import threading
-import logging
 import traceback
 
 import zmq
 import msgpack
 
 from smite.aes_cipher import AESCipher
-from smite.exceptions import ServantBindError
+from smite.exceptions import (
+    ServantBindError,
+    MessageRecvError,
+    RoutineStop,
+)
 
 
 DEFAULT_THREADS_NUM = 5
@@ -132,16 +135,17 @@ class Servant(object):
                 summary_stats[name] += 1
 
         while True:
-            id_ = socket.recv()
-            # TODO: make an optional list of allowed identities
-            if id_ == '__break__':
+            try:
+                id_, msg = self._recv(socket)
+            except MessageRecvError:
+                continue
+            except RoutineStop:
                 break
-            msg = socket.recv()
 
             increment_stat('received_messages')
 
             try:
-                msg = self._process_message(msg)
+                msg = msgpack.unpackb(msg)
             except:
                 increment_stat('malicious_messages')
                 # do not bother to reply if client sent some trash
@@ -160,17 +164,22 @@ class Servant(object):
 
             rep['_uid'] = msg['_uid']
 
+            id_, rep = self._prepare_reply(id_, rep)
             socket.send(id_, zmq.SNDMORE)
-            socket.send(self._process_reply(rep))
+            socket.send(rep)
             increment_stat('processed_messages')
 
         socket.close()
 
-    def _process_message(self, msg):
-        return msgpack.unpackb(msg)
+    def _recv(self, socket):
+        id_ = socket.recv()
+        if id_ == '__break__':
+            raise RoutineStop()
+        msg = socket.recv()
+        return id_, msg
 
-    def _process_reply(self, rep):
-        return msgpack.packb(rep)
+    def _prepare_reply(self, id_, rep):
+        return id_, msgpack.packb(rep)
 
 
 class SecureServant(Servant):
@@ -179,10 +188,10 @@ class SecureServant(Servant):
         super(SecureServant, self).__init__(methods, threads_num)
         self.cipher = AESCipher(secret_key)
 
-    # TODO: this inheritance thing is a bit silly,
-    #       pass 'message_processor' callable maybe?
-    def _process_message(self, msg):
-        return msgpack.unpackb(self.cipher.decrypt(msg))
+    def _recv(self, socket):
+        id_, msg = super(SecureServant, self)._recv(socket)
+        return self.cipher.decrypt(id_), self.cipher.decrypt(msg)
 
-    def _process_reply(self, rep):
-        return self.cipher.encrypt(msgpack.packb(rep))
+    def _prepare_reply(self, id_, rep):
+        id_, rep = super(SecureServant, self)._prepare_reply(id_, rep)
+        return self.cipher.encrypt(id_), self.cipher.encrypt(rep)
