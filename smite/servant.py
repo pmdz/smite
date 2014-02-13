@@ -22,8 +22,20 @@ _STATS_TMPL = {
 
 class Servant(object):
 
-    def __init__(self, methods, threads_num=DEFAULT_THREADS_NUM):
-        self.methods = methods
+    def __init__(self, methods=None, threads_num=DEFAULT_THREADS_NUM):
+        self.methods = {}
+
+        if isinstance(methods, (list, tuple)):
+            map(self.register_method, methods)
+
+        elif isinstance(methods, dict):
+            for name, method in methods.iteritems():
+                self.register_method(method, name)
+
+        elif methods is not None:
+            raise ValueError('Invalid \'methods\' argument type: {}'
+                             .format(type(methods)))
+
         self.threads_num = threads_num
         self.backend_uri = 'inproc://smite-backend'
         self.stats = {'threads': {}, 'summary': _STATS_TMPL.copy()}
@@ -31,6 +43,19 @@ class Servant(object):
 
     def set_opts(self, threads_num=None):
         self.threads_num = threads_num | self.threads_num
+
+    def register_method(self, method, name=None):
+        if not hasattr(method, '__call__'):
+            raise ValueError('{} is not callable'.format(method))
+
+        if name is None:
+            name = method.__name__
+
+        if name in self.methods:
+            raise ValueError('Method named \'{}\' is already registered'
+                             .format(name))
+
+        self.methods[name] = method
 
     def bind(self, host, port):
         self.ctx = zmq.Context()
