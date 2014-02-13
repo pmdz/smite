@@ -2,6 +2,8 @@ import uuid
 import time
 from threading import Thread
 
+import zmq
+
 from smite.message import Message
 from smite.servant import (
     Servant,
@@ -156,6 +158,67 @@ def test_encrypted_messaging():
     client = Client(HOST, PORT, secret_key=secret)
     rep = client.send(Message('multipl', 2, 4))
     assert rep == 8
+
+    servant.stop()
+    servant_thread.join()
+
+
+def test_malicious_messages_non_secure():
+
+    def echo(text):
+        return text
+
+    servant = Servant([echo])
+    servant.bind(HOST, PORT)
+    servant_thread = Thread(target=servant.run)
+    servant_thread.start()
+
+    ctx = zmq.Context()
+
+    socket = ctx.socket(zmq.DEALER)
+    poll = zmq.Poller()
+    poll.register(socket, zmq.POLLIN)
+    socket.connect('tcp://{}:{}'.format(HOST, PORT))
+
+    socket.send('foo')
+
+    sockets = dict(poll.poll(2000))
+    assert sockets.get(socket) != zmq.POLLIN
+
+    time.sleep(.2)
+    assert servant.stats['summary']['received_messages'] == 1
+    assert servant.stats['summary']['processed_messages'] == 0
+    assert servant.stats['summary']['malicious_messages'] == 1
+
+    servant.stop()
+    servant_thread.join()
+
+
+def test_malicious_messages_secure():
+    secret_1 = 'foo'
+    secret_2 = 'bar'
+
+    def echo(text):
+        return text
+
+    servant = SecureServant([echo], secret_key=secret_1)
+    servant.bind(HOST, PORT)
+    servant_thread = Thread(target=servant.run)
+    servant_thread.start()
+
+    client = Client(HOST, PORT, secret_key=secret_2)
+    raised = False
+    try:
+        client.send(Message('multipl', 2, 4), 2)
+    except ClientTimeout:
+        raised = True
+
+    assert raised
+
+    time.sleep(.2)
+    assert servant.stats['summary']['received_messages'] == 1
+    assert servant.stats['summary']['processed_messages'] == 0
+    assert servant.stats['summary']['malicious_messages'] == 1
 
     servant.stop()
     servant_thread.join()

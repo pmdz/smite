@@ -53,8 +53,6 @@ class Client(object):
         msg = msgpack.packb(msg)
 
         if self.cipher is not None:
-            #self._socket.setsockopt(zmq.IDENTITY,
-                                    #self.cipher.encrypt(self.identity))
             msg += self._orig_identity
             msg = self.cipher.encrypt(msg)
 

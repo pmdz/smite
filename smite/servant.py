@@ -146,6 +146,7 @@ class Servant(object):
             try:
                 id_, msg = self._recv(socket)
             except MessageRecvError:
+                increment_stat('received_messages')
                 increment_stat('malicious_messages')
                 continue
             except RoutineStop:
