@@ -2,18 +2,26 @@ import uuid
 import time
 from threading import Thread
 
+from smite.message import Message
+from smite.servant import (
+    Servant,
+    SecureServant,
+)
+from smite.client import Client
+from smite.exceptions import (
+    ClientTimeout,
+    MessageException,
+)
+
+
+HOST = '127.0.0.1'
+PORT = 3000
+
 
 def test_client_timeout():
-    from message import Message
-    from servant import Servant
-    from client import Client
-    from exceptions import ClientTimeout
-
-    host = '127.0.0.1'
-    port = 3000
     timeout = 3
 
-    client = Client(host, port, default_timeout=timeout)
+    client = Client(HOST, PORT, default_timeout=timeout)
     msg = Message('dummy_method')
 
     raised = False
@@ -36,7 +44,7 @@ def test_client_timeout():
         raise DummyException
 
     servant = Servant({'dummy_method': dummy_method})
-    servant.bind(host, port)
+    servant.bind(HOST, PORT)
     # run servant in separate thread and wait 3 seconds for message
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
@@ -56,16 +64,7 @@ def test_client_timeout():
     assert servant.stats['summary']['processed_messages'] == 0
 
 
-# TODO: restart server during message processing
-#   send try later message?
-
 def test_multiple_clients():
-    from message import Message
-    from servant import Servant
-    from client import Client
-
-    host = '127.0.0.1'
-    port = 3000
 
     def short_echo(text):
         time.sleep(1)
@@ -76,7 +75,7 @@ def test_multiple_clients():
         return text
 
     servant = Servant({'short_echo': short_echo, 'long_echo': long_echo})
-    servant.bind(host, port)
+    servant.bind(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
@@ -85,7 +84,7 @@ def test_multiple_clients():
             self.method_name = method_name
 
         def __call__(self):
-            client = Client(host, port)
+            client = Client(HOST, PORT)
             txt = uuid.uuid4().hex
             msg = Message(self.method_name, txt)
             res = client.send(msg)
@@ -112,14 +111,6 @@ def test_multiple_clients():
 
 
 def test_exception_response():
-    from message import Message
-    from servant import Servant
-    from client import Client
-    from exceptions import MessageException
-
-    host = '127.0.0.1'
-    port = 3000
-
     exc_message = 'This is dummy exception message'
 
     class DummyException(Exception):
@@ -129,11 +120,11 @@ def test_exception_response():
         raise DummyException(exc_message)
 
     servant = Servant({'raise_dummy_exc': raise_dummy_exc})
-    servant.bind(host, port)
+    servant.bind(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
-    client = Client(host, port)
+    client = Client(HOST, PORT)
 
     raised = False
     try:
@@ -152,23 +143,17 @@ def test_exception_response():
 
 
 def test_encrypted_messaging():
-    from message import Message
-    from servant import SecureServant
-    from client import Client
-
-    host = '127.0.0.1'
-    port = 3000
     secret = 'foobar'
 
     def multipl(num1, num2):
         return num1 * num2
 
     servant = SecureServant([multipl], secret)
-    servant.bind(host, port)
+    servant.bind(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
-    client = Client(host, port, secret_key=secret)
+    client = Client(HOST, PORT, secret_key=secret)
     rep = client.send(Message('multipl', 2, 4))
     assert rep == 8
 

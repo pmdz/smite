@@ -155,7 +155,7 @@ class Servant(object):
 
             try:
                 msg = msgpack.unpackb(msg)
-                log.info('Unpacked message: {}'.format(msg))
+                log.info('Received message: {}'.format(msg))
             except:
                 log.warn('Message unpack failed')
                 increment_stat('malicious_messages')
@@ -177,7 +177,7 @@ class Servant(object):
 
             id_, rep = self._prepare_reply(id_, rep)
             log.debug('reply id: {}'.format(id_))
-            log.info('reply: {}'.format(rep))
+            log.info('Sending reply: {}'.format(rep))
             socket.send(id_, zmq.SNDMORE)
             socket.send(rep)
             increment_stat('processed_messages')
