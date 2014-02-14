@@ -195,9 +195,8 @@ class Servant(object):
 
             rep['_uid'] = msg['_uid']
 
-            id_, rep = self._prepare_reply(id_, rep)
-            log.debug('reply id: {}'.format(id_))
             log.info('Sending reply: {}'.format(rep))
+            id_, rep = self._prepare_reply(id_, rep)
             socket.send(id_, zmq.SNDMORE)
             socket.send(rep)
             increment_stat('processed_messages')
@@ -223,15 +222,8 @@ class SecureServant(Servant):
 
     def _recv(self, socket):
         id_, msg = super(SecureServant, self)._recv(socket)
-        dec_id = self.cipher.decrypt(id_)
         dec_msg = self.cipher.decrypt(msg)
-
-        log.debug('Decrypted ID: {}'.format(dec_id))
-        log.debug('Decrypted message: {}'.format(dec_msg))
-
-        if not dec_msg.endswith(dec_id):
-            raise MessageRecvError()
-        return id_, dec_msg[:-len(dec_id)]
+        return id_, dec_msg
 
     def _prepare_reply(self, id_, rep):
         id_, rep = super(SecureServant, self)._prepare_reply(id_, rep)
