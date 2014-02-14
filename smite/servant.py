@@ -59,7 +59,10 @@ class Servant(object):
             raise ValueError('{} is not callable'.format(method))
 
         if name is None:
-            name = method.__name__
+            if inspect.isfunction(method):
+                name = method.__name__
+            elif hasattr(method, '__class__'):
+                name = method.__class__.__name__
 
         if name in self.methods:
             raise ValueError('Method named \'{}\' is already registered'
