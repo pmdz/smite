@@ -25,6 +25,7 @@ class Client(object):
 
         self.ctx = zmq.Context()
         self._create_socket()
+        self._uuid_node = uuid.getnode()
 
     def send(self, msg, timeout=None):
         if not isinstance(msg, Message):
@@ -34,7 +35,7 @@ class Client(object):
 
         msg = {
             '_method': msg.method,
-            '_uid': uuid.uuid4().hex,
+            '_uid': uuid.uuid1(self._uuid_node).hex,
             'args': msg.args,
             'kwargs': msg.kwargs,
         }
