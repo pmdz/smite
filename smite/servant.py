@@ -3,6 +3,7 @@ import threading
 import traceback
 import logging
 import inspect
+import uuid
 from types import ModuleType
 
 import zmq
@@ -47,7 +48,8 @@ class Servant(object):
                              .format(type(methods)))
 
         self.threads_num = threads_num
-        self.backend_uri = 'inproc://smite-backend'
+        self.backend_uri = ('inproc://smite-backend-{}'
+                            .format(uuid.uuid1().hex))
         self.stats = {'threads': {}, 'summary': _STATS_TMPL.copy()}
         self._lock = threading.Lock()
 
