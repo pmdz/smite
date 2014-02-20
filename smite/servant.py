@@ -187,7 +187,8 @@ class Servant(object):
 
             try:
                 method = self.methods[msg['_method']]
-                rep = {'_result': method(*msg['args'], **msg['kwargs'])}
+                rep = {'_result': method(*msg.get('args', ()),
+                                         **msg.get('kwargs', {}))}
             except Exception, e:
                 increment_stat('exceptions')
                 rep = {

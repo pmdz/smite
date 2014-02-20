@@ -33,12 +33,18 @@ class Client(object):
         if timeout is None:
             timeout = self._default_timeout
 
-        msg = {
+        msg_d = {
             '_method': msg.method,
             '_uid': uuid.uuid1(self._uuid_node).hex,
-            'args': msg.args,
-            'kwargs': msg.kwargs,
         }
+        if msg.args:
+            msg_d['args'] = msg.args
+        if msg.kwargs:
+            msg_d['kwargs'] = msg.kwargs
+
+        msg = msg_d
+        del msg_d
+
         log.debug('Sending message: {}'.format(msg))
 
         msg = msgpack.packb(msg)
