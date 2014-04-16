@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
+import time
 import sys
 import json
+import signal
+import threading
 
 from smite.servant import (
     Servant,
@@ -9,10 +12,7 @@ from smite.servant import (
 )
 
 
-def main(argv=sys.argv):
-    with open(argv[1]) as f:
-        config = json.load(f)
-
+def start_servant(config):
     secret_key = None
 
     if 'secret_key_file' in config:
@@ -33,4 +33,36 @@ def main(argv=sys.argv):
         servant.expose_module(module)
 
     servant.bind(config['host'], config['port'])
-    servant.run()
+    servant_thread = threading.Thread(target=servant.run)
+    servant_thread.start()
+    return servant, servant_thread
+
+
+def main(argv=sys.argv):
+    config_file = argv[1]
+
+    def load_config():
+        with open(config_file) as f:
+            return json.load(f)
+
+    refs = {}
+    refs['servant'], refs['thread'] = start_servant(load_config())
+
+    def handle_sighup(signum, frame):
+        refs['servant'].stop()
+        refs['thread'].join()
+        refs['servant'], refs['thread'] = start_servant(load_config())
+
+    def handle_sigterm(signum, frame):
+        refs['servant'].stop()
+        refs['thread'].join()
+
+    signal.signal(signal.SIGHUP, handle_sighup)
+    signal.signal(signal.SIGTERM, handle_sigterm)
+
+    # catch keyboard interrupt
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        handle_sigterm(None, None)
