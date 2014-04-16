@@ -14,4 +14,10 @@ setup(
     name='smite',
     version='0.1a',
     install_requires=requires,
+    zip_safe=False,
+    entry_points={
+        'console_scripts': [
+            'smite-servant = smite.cli.servant:main',
+        ],
+    }
 )
