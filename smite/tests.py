@@ -150,7 +150,7 @@ def test_encrypted_messaging():
     def multipl(num1, num2):
         return num1 * num2
 
-    servant = SecureServant([multipl], secret)
+    servant = SecureServant(methods=[multipl], secret_key=secret)
     servant.bind(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
@@ -201,7 +201,7 @@ def test_malicious_messages_secure():
     def echo(text):
         return text
 
-    servant = SecureServant([echo], secret_key=secret_1)
+    servant = SecureServant(methods=[echo], secret_key=secret_1)
     servant.bind(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
