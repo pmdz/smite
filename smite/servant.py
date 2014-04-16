@@ -73,11 +73,11 @@ class Servant(object):
         self.methods[name] = method
 
     def expose_module(self, module):
-        if not isinstance(module, (str, ModuleType)):
+        if not isinstance(module, (str, unicode, ModuleType)):
             raise ValueError('Invalid \'module\' argument type: {}'
                              .format(type(module)))
 
-        if isinstance(module, str):
+        if isinstance(module, (str, unicode)):
             module = resolve(module)
 
         module_functions = filter(
@@ -222,7 +222,8 @@ class Servant(object):
 
 class SecureServant(Servant):
 
-    def __init__(self, methods, secret_key, threads_num=DEFAULT_THREADS_NUM):
+    def __init__(self, secret_key, methods=None,
+                 threads_num=DEFAULT_THREADS_NUM):
         super(SecureServant, self).__init__(methods, threads_num)
         self.cipher = AESCipher(secret_key)
 
