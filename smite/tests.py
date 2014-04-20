@@ -67,6 +67,25 @@ def test_client_timeout():
     assert servant.stats['summary']['processed_messages'] == 0
 
 
+def test_noreply_message():
+    servant = Servant({'echo': lambda t: t})
+    servant.bind(HOST, PORT)
+
+    servant_thread = Thread(target=servant.run)
+    servant_thread.start()
+
+    client = Client(HOST, PORT)
+    msg = Message('echo', uuid.uuid1().hex)
+    client.send(msg, noreply=True)
+
+    time.sleep(1)
+    assert servant.stats['summary']['received_messages'] == 1
+    assert servant.stats['summary']['processed_messages'] == 1
+
+    servant.stop()
+    servant_thread.join()
+
+
 def test_multiple_clients():
 
     def short_echo(text):

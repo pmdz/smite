@@ -27,7 +27,7 @@ class Client(object):
         self._create_socket()
         self._uuid_node = uuid.getnode()
 
-    def send(self, msg, timeout=None):
+    def send(self, msg, timeout=None, noreply=False):
         if not isinstance(msg, Message):
             raise TypeError('\'msg\' argument should be type of \'Message\'')
         if timeout is None:
@@ -37,6 +37,8 @@ class Client(object):
             '_method': msg.method,
             '_uid': uuid.uuid1(self._uuid_node).hex,
         }
+        if noreply:
+            msg_d['_noreply'] = 1
         if msg.args:
             msg_d['args'] = msg.args
         if msg.kwargs:
@@ -53,6 +55,13 @@ class Client(object):
             msg = self.cipher.encrypt(msg)
 
         self._socket.send(msg)
+
+        if noreply:
+            return True
+        else:
+            return self._wait_for_reply(timeout)
+
+    def _wait_for_reply(self, timeout):
         sockets = dict(self._poll.poll(timeout * 1000))
 
         if sockets.get(self._socket) == zmq.POLLIN:

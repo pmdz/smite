@@ -197,8 +197,13 @@ class Servant(object):
                 method = self.methods[msg['_method']]
                 rep = {'_result': method(*msg.get('args', ()),
                                          **msg.get('kwargs', {}))}
+                if msg.get('_noreply') == 1:
+                    increment_stat('processed_messages')
+                    return
             except Exception, e:
                 increment_stat('exceptions')
+                if msg.get('_noreply') == 1:
+                    return
                 rep = {
                     '_error': 50,
                     '_exc_msg': e.message if hasattr(e, 'message') else '',
