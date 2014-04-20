@@ -126,17 +126,23 @@ class Servant(object):
 
             if self.frontend in sockets:
                 if sockets[self.frontend] == zmq.POLLIN:
-                    id_ = self.frontend.recv()
-                    msg = self.frontend.recv()
-                    self.backend.send(id_, zmq.SNDMORE)
-                    self.backend.send(msg)
+                    while True:
+                        recv = self.frontend.recv()
+                        if self.frontend.getsockopt(zmq.RCVMORE):
+                            self.backend.send(recv, zmq.SNDMORE)
+                        else:
+                            self.backend.send(recv)
+                            break
 
             if self.backend in sockets:
                 if sockets[self.backend] == zmq.POLLIN:
-                    id_ = self.backend.recv()
-                    msg = self.backend.recv()
-                    self.frontend.send(id_, zmq.SNDMORE)
-                    self.frontend.send(msg)
+                    while True:
+                        recv = self.backend.recv()
+                        if self.backend.getsockopt(zmq.RCVMORE):
+                            self.frontend.send(recv, zmq.SNDMORE)
+                        else:
+                            self.frontend.send(recv)
+                            break
 
         for thread in threads:
             self.backend.send('__break__')
@@ -203,18 +209,24 @@ class Servant(object):
 
             log.info('Sending reply: {}'.format(rep))
             id_, rep = self._prepare_reply(id_, rep)
-            socket.send(id_, zmq.SNDMORE)
+            for part in id_:
+                socket.send(part, zmq.SNDMORE)
             socket.send(rep)
             increment_stat('processed_messages')
 
         socket.close()
 
     def _recv(self, socket):
-        id_ = socket.recv()
-        if id_ == '__break__':
-            raise RoutineStop()
-        msg = socket.recv()
-        return id_, msg
+        id_ = []
+        while True:
+            recv = socket.recv()
+            if recv == '__break__':
+                raise RoutineStop()
+            if socket.getsockopt(zmq.RCVMORE):
+                id_.append(recv)
+            else:
+                msg = recv
+                return id_, msg
 
     def _prepare_reply(self, id_, rep):
         return id_, msgpack.packb(rep)

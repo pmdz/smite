@@ -10,6 +10,7 @@ from smite.servant import (
     SecureServant,
 )
 from smite.client import Client
+from smite.proxy import Proxy
 from smite.exceptions import (
     ClientTimeout,
     MessageException,
@@ -110,6 +111,55 @@ def test_multiple_clients():
 
     for client_thread in client_threads:
         client_thread.join()
+
+
+def test_proxy():
+    host = '127.0.0.1'
+    proxy_port = '9000'
+    servant_port = '9001'
+
+    def echo(text):
+        return text
+
+    servant = Servant({'echo': echo})
+    servant.bind(host, servant_port)
+    servant_thread = Thread(target=servant.run)
+    servant_thread.start()
+
+    proxy = Proxy(host, servant_port)
+    proxy.bind(host, proxy_port)
+    proxy_thread = Thread(target=proxy.run)
+    proxy_thread.start()
+
+    class send_msg(object):
+        def __init__(self, method_name):
+            self.method_name = method_name
+
+        def __call__(self):
+            time.sleep(.3)
+            client = Client(host, proxy_port)
+            txt = uuid.uuid4().hex
+            msg = Message(self.method_name, txt)
+            res = client.send(msg)
+            assert res == txt
+
+    messages_num = 10
+    client_threads = []
+    for i in xrange(messages_num):
+        thread = Thread(target=send_msg('echo'))
+        client_threads.append(thread)
+        thread.start()
+
+    time.sleep(1)
+
+    assert servant.stats['summary']['received_messages'] == messages_num
+    assert servant.stats['summary']['processed_messages'] == messages_num
+    assert servant.stats['summary']['exceptions'] == 0
+
+    servant.stop()
+    servant_thread.join()
+    proxy.stop()
+    proxy_thread.join()
 
 
 def test_exception_response():

@@ -10,6 +10,10 @@ class ServantBindError(Exception):
     pass
 
 
+class ProxyBindError(Exception):
+    pass
+
+
 class MessageException(Exception):
 
     def __init__(self, message, traceback):

@@ -4,3 +4,4 @@ from smite.servant import (
     SecureServant,
 )
 from smite.client import Client
+from smite.proxy import Proxy
