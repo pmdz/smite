@@ -14,7 +14,14 @@ setup(
     name='smite',
     version='0.1a',
     install_requires=requires,
+    author='pmdez',
+    author_email='pawel@mewritescode.com',
+    url='https://github.com/pmdz/smite',
     zip_safe=False,
+    description='Simple messaging library based on ZMQ',
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+    ],
     entry_points={
         'console_scripts': [
             'smite-servant = smite.cli.servant:main',
