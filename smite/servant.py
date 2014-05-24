@@ -53,6 +53,7 @@ class Servant(object):
                             .format(uuid.uuid1().hex))
         self.stats = {'threads': {}, 'summary': _STATS_TMPL.copy()}
         self._lock = threading.Lock()
+        self._default_method = None
 
     def set_opts(self, threads_num=None):
         self.threads_num = threads_num | self.threads_num
@@ -72,6 +73,9 @@ class Servant(object):
                              .format(name))
 
         self.methods[name] = method
+
+    def set_default_method(self, method):
+        self._default_method = method
 
     def expose_module(self, module):
         if not isinstance(module, (str, unicode, ModuleType)):
@@ -197,9 +201,23 @@ class Servant(object):
                 continue
 
             try:
-                method = self.methods[msg['_method']]
-                rep = {'_result': method(*msg.get('args', ()),
-                                         **msg.get('kwargs', {}))}
+                method = self.methods.get(msg['_method'])
+                if (
+                    method is None and
+                    hasattr(self._default_method, '__call__')
+                ):
+                    rep = {
+                        '_result': self._default_method(
+                            msg['_method'],
+                            *msg.get('args', ()),
+                            **msg.get('kwargs', {})
+                        )
+                    }
+                elif method is not None:
+                    rep = {'_result': method(*msg.get('args', ()),
+                                             **msg.get('kwargs', {}))}
+                else:
+                    raise KeyError
                 if msg.get('_noreply') == 1:
                     increment_stat('processed_messages')
                     return
