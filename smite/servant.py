@@ -4,6 +4,7 @@ import traceback
 import logging
 import inspect
 import uuid
+import sys
 from types import ModuleType
 from threading import Lock
 
@@ -222,13 +223,14 @@ class Servant(object):
                     continue
             except Exception, e:
                 increment_stat('exceptions')
-                if msg.get('_noreply') == 1:
-                    continue
                 rep = {
                     '_error': 50,
                     '_exc_msg': e.message if hasattr(e, 'message') else '',
                     '_traceback': traceback.format_exc(),
                 }
+                log.error(rep['_exc_msg'], exc_info=sys.exc_info())
+                if msg.get('_noreply') == 1:
+                    continue
 
             rep['_uid'] = msg['_uid']
 
