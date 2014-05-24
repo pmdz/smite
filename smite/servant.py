@@ -5,6 +5,7 @@ import logging
 import inspect
 import uuid
 from types import ModuleType
+from threading import Lock
 
 import zmq
 import msgpack
@@ -252,3 +253,41 @@ class SecureServant(Servant):
     def _prepare_reply(self, msg_id, rep):
         msg_id, rep = super(SecureServant, self)._prepare_reply(msg_id, rep)
         return msg_id, self.cipher.encrypt(rep)
+
+
+class SecureServantIdent(Servant):
+
+    def __init__(self, get_key_fn, methods=None,
+                 threads_num=DEFAULT_THREADS_NUM):
+        super(SecureServantIdent, self).__init__(methods, threads_num)
+        self._ciphers = {}  # cipher per ident
+        self._msg_id_to_ident = {}
+        self._get_key_fn = get_key_fn
+        self._lock = Lock()
+
+    def _recv(self, socket):
+        msg_id, msg = super(SecureServantIdent, self)._recv(socket)
+        ident = msg[:32]
+        msg = msg[32:]
+        if ident not in self._ciphers:
+            self._ciphers[ident] = AESCipher(self._get_key_fn(ident))
+
+        self._lock.acquire()
+        self._msg_id_to_ident[self._msg_id_hash(msg_id)] = ident
+        self._lock.release()
+
+        dec_msg = self._ciphers[ident].decrypt(msg)
+        return msg_id, dec_msg
+
+    def _prepare_reply(self, msg_id, rep):
+        msg_id, rep = (
+            super(SecureServantIdent, self)
+            ._prepare_reply(msg_id, rep)
+        )
+        self._lock.acquire()
+        ident = self._msg_id_to_ident.pop(self._msg_id_hash(msg_id))
+        self._lock.release()
+        return msg_id, self._ciphers[ident].encrypt(rep)
+
+    def _msg_id_hash(self, msg_id):
+        return hash(frozenset(msg_id))

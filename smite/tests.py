@@ -1,5 +1,6 @@
 import uuid
 import time
+import random
 from threading import Thread
 
 import zmq
@@ -8,6 +9,7 @@ from smite.message import Message
 from smite.servant import (
     Servant,
     SecureServant,
+    SecureServantIdent,
 )
 from smite.client import Client
 from smite.proxy import Proxy
@@ -227,6 +229,52 @@ def test_encrypted_messaging():
     client = Client(HOST, PORT, secret_key=secret)
     rep = client.send(Message('multipl', 2, 4))
     assert rep == 8
+
+    servant.stop()
+    servant_thread.join()
+
+
+def test_secure_servant_ident():
+    secrets = {
+        '38dce0e1b46d4ae089c6d425653b57a9': '1234s9v02',
+        'cbe74d25f5764dd8955d4ec137b7de4a': '95nx84mxw',
+        '663d817ba3bf4fa6a8f4214c78621294': '4n9t7us7l',
+    }
+
+    def get_key(ident):
+        return secrets[ident]
+
+    def multipl(num1, num2):
+        return num1 * num2
+
+    servant = SecureServantIdent(
+        get_key_fn=get_key,
+        methods=[multipl],
+    )
+    servant.bind(HOST, PORT)
+    servant_thread = Thread(target=servant.run)
+    servant_thread.start()
+
+    def send_messages(secret_key, ident):
+        client = Client(
+            HOST, PORT, secret_key=secret_key, ident=ident
+        )
+        for i in range(50):
+            a = random.randint(1, 10)
+            b = random.randint(1, 10)
+            expected_result = multipl(a, b)
+            rep = client.send(Message('multipl', a, b))
+            assert rep == expected_result
+
+    client_threads = []
+    for ident, key in secrets.items():
+        thread = Thread(target=send_messages, args=(key, ident))
+        client_threads.append(thread)
+        thread.start()
+
+    time.sleep(1)
+    for t in client_threads:
+        t.join()
 
     servant.stop()
     servant_thread.join()

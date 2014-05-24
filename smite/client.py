@@ -17,9 +17,11 @@ log = logging.getLogger('smite.client')
 
 class Client(object):
 
-    def __init__(self, host, port, secret_key=None, default_timeout=5):
+    def __init__(self, host, port, secret_key=None, ident=None,
+                 default_timeout=5):
         self.host = host
         self.port = port
+        self.ident = ident
         self._default_timeout = default_timeout
         self.cipher = AESCipher(secret_key) if secret_key is not None else None
 
@@ -54,6 +56,8 @@ class Client(object):
         if self.cipher is not None:
             msg = self.cipher.encrypt(msg)
 
+        if self.ident is not None:
+            msg = '{}{}'.format(self.ident, msg)
         self._socket.send(msg)
 
         if noreply:
