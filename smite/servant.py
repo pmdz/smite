@@ -161,8 +161,7 @@ class Servant(object):
 
     def stop(self):
         self._run = False
-        while not self.ctx.closed:
-            time.sleep(.1)
+        time.sleep(1)
 
     def routine(self):
         socket = self.ctx.socket(zmq.DEALER)
@@ -193,7 +192,7 @@ class Servant(object):
 
             try:
                 msg = msgpack.unpackb(msg)
-                log.info('Received message: {}'.format(msg))
+                log.debug('Received message: {}'.format(msg))
             except:
                 log.warn('Message unpack failed')
                 increment_stat('malicious_messages')
@@ -220,11 +219,11 @@ class Servant(object):
                     raise KeyError
                 if msg.get('_noreply') == 1:
                     increment_stat('processed_messages')
-                    return
+                    continue
             except Exception, e:
                 increment_stat('exceptions')
                 if msg.get('_noreply') == 1:
-                    return
+                    continue
                 rep = {
                     '_error': 50,
                     '_exc_msg': e.message if hasattr(e, 'message') else '',
