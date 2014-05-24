@@ -266,11 +266,15 @@ class SecureServantIdent(Servant):
         self._lock = Lock()
 
     def _recv(self, socket):
-        msg_id, msg = super(SecureServantIdent, self)._recv(socket)
-        ident = msg[:32]
-        msg = msg[32:]
+        msg_id, orig_msg = super(SecureServantIdent, self)._recv(socket)
+        ident = orig_msg[:32]
+        msg = orig_msg[32:]
         if ident not in self._ciphers:
-            self._ciphers[ident] = AESCipher(self._get_key_fn(ident))
+            key = self._get_key_fn(ident)
+            if key is None:
+                return msg_id, orig_msg
+            else:
+                self._ciphers[ident] = AESCipher(self._get_key_fn(ident))
 
         self._lock.acquire()
         self._msg_id_to_ident[self._msg_id_hash(msg_id)] = ident
