@@ -174,7 +174,7 @@ class Servant(object):
 
         while True:
             try:
-                id_, msg = self._recv(socket)
+                msg_id, msg = self._recv(socket)
             except MessageRecvError:
                 increment_stat('received_messages')
                 increment_stat('malicious_messages')
@@ -213,8 +213,8 @@ class Servant(object):
             rep['_uid'] = msg['_uid']
 
             log.info('Sending reply: {}'.format(rep))
-            id_, rep = self._prepare_reply(id_, rep)
-            for part in id_:
+            msg_id, rep = self._prepare_reply(msg_id, rep)
+            for part in msg_id:
                 socket.send(part, zmq.SNDMORE)
             socket.send(rep)
             increment_stat('processed_messages')
@@ -222,19 +222,19 @@ class Servant(object):
         socket.close()
 
     def _recv(self, socket):
-        id_ = []
+        msg_id = []
         while True:
             recv = socket.recv()
             if recv == '__break__':
                 raise RoutineStop()
             if socket.getsockopt(zmq.RCVMORE):
-                id_.append(recv)
+                msg_id.append(recv)
             else:
                 msg = recv
-                return id_, msg
+                return msg_id, msg
 
-    def _prepare_reply(self, id_, rep):
-        return id_, msgpack.packb(rep)
+    def _prepare_reply(self, msg_id, rep):
+        return msg_id, msgpack.packb(rep)
 
 
 class SecureServant(Servant):
@@ -245,10 +245,10 @@ class SecureServant(Servant):
         self.cipher = AESCipher(secret_key)
 
     def _recv(self, socket):
-        id_, msg = super(SecureServant, self)._recv(socket)
+        msg_id, msg = super(SecureServant, self)._recv(socket)
         dec_msg = self.cipher.decrypt(msg)
-        return id_, dec_msg
+        return msg_id, dec_msg
 
-    def _prepare_reply(self, id_, rep):
-        id_, rep = super(SecureServant, self)._prepare_reply(id_, rep)
-        return id_, self.cipher.encrypt(rep)
+    def _prepare_reply(self, msg_id, rep):
+        msg_id, rep = super(SecureServant, self)._prepare_reply(msg_id, rep)
+        return msg_id, self.cipher.encrypt(rep)
