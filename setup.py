@@ -20,6 +20,7 @@ setup(
     zip_safe=False,
     description='Simple messaging library based on ZMQ',
     classifiers=[
+        "Programming Language :: Python",
         "Development Status :: 3 - Alpha",
     ],
     entry_points={
