@@ -157,6 +157,8 @@ class Servant(object):
 
     def stop(self):
         self._run = False
+        while not self.ctx.closed:
+            time.sleep(.1)
 
     def routine(self):
         socket = self.ctx.socket(zmq.DEALER)
