@@ -40,6 +40,10 @@ class Client(object):
         self.connection_uri = 'ipc://{}'.format(address)
         self._connect()
 
+    def disconnect(self):
+        self._socket.close()
+        self.ctx.term()
+
     def send(self, msg, timeout=None, noreply=False):
         return self._send(msg, timeout=None, noreply=False)
 

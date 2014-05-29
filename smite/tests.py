@@ -58,6 +58,7 @@ def client_timeout():
     time.sleep(3)
     servant.stop()
     servant_thread.join()
+    client.disconnect()
 
     for thread_stats in servant.stats['threads'].values():
         assert thread_stats['exceptions'] == 0
@@ -89,6 +90,7 @@ def test_noreply_message():
 
     servant.stop()
     servant_thread.join()
+    client.disconnect()
 
 
 def test_multiple_clients():
@@ -117,6 +119,7 @@ def test_multiple_clients():
             msg = Message(self.method_name, txt)
             res = client.send(msg)
             assert res == txt
+            client.disconnect()
 
     client_threads = []
     for method_name in ['short_echo', 'long_echo']:
@@ -168,6 +171,7 @@ def test_proxy():
             msg = Message(self.method_name, txt)
             res = client.send(msg)
             assert res == txt
+            client.disconnect()
 
     messages_num = 10
     client_threads = []
@@ -219,6 +223,7 @@ def test_exception_response():
     assert servant.stats['summary']['exceptions'] == 1
     servant.stop()
     servant_thread.join()
+    client.disconnect()
 
 
 def test_encrypted_messaging():
@@ -239,6 +244,7 @@ def test_encrypted_messaging():
 
     servant.stop()
     servant_thread.join()
+    client.disconnect()
 
 
 def test_secure_servant_ident():
@@ -271,6 +277,7 @@ def test_secure_servant_ident():
             expected_result = multipl(a, b)
             rep = client.send(Message('multipl', a, b))
             assert rep == expected_result
+        client.disconnect()
 
     client_threads = []
     for ident, key in secrets.items():
@@ -346,3 +353,4 @@ def test_malicious_messages_secure():
 
     servant.stop()
     servant_thread.join()
+    client.disconnect()

@@ -6,6 +6,6 @@ from smite.servant import (
 )
 from smite.client import (
     Client,
-    Rclient,
+    RClient,
 )
 from smite.proxy import Proxy

@@ -13,7 +13,7 @@ requires = [
 setup(
     name='smite',
     packages=['smite'],
-    version='0.1a3',
+    version='0.1a4',
     install_requires=requires,
     author='pmdez',
     author_email='pawel@mewritescode.com',
