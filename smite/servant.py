@@ -94,24 +94,21 @@ class Servant(object):
         for fname, fn in module_functions:
             self.register_method(fn, '{}.{}'.format(module.__name__, fname))
 
-    def bind(self, host, port):
-        self.ctx = zmq.Context()
-        self.frontend = self.ctx.socket(zmq.ROUTER)
+    def bind(self, bind_uri):
+        self.bind_uri = bind_uri
+        self._bind()
 
-        try:
-            uri = 'tcp://{}:{}'.format(host, port)
-            self.frontend.bind(uri)
-            log.info('Servant listening at {}'.format(uri))
-        except zmq.error.ZMQError as e:
-            exc = ServantBindError(
-                'Cannot bind to {}:{} ({})'
-                .format(host, port, e.strerror)
-            )
-            log.exception(exc)
-            raise exc
+    def bind_tcp(self, host, port):
+        self.bind_uri = 'tcp://{}:{}'.format(host, port)
+        self._bind()
 
-        self.backend = self.ctx.socket(zmq.DEALER)
-        self.backend.bind(self.backend_uri)
+    def bind_ipc(self, address):
+        self.bind_uri = 'ipc://{}'.format(address)
+        self._bind()
+
+    def bind_inproc(self, address):
+        self.bind_uri = 'inproc://{}'.format(address)
+        self._bind()
 
     def run(self):
         self._run = True
@@ -242,6 +239,24 @@ class Servant(object):
             increment_stat('processed_messages')
 
         socket.close()
+
+    def _bind(self):
+        self.ctx = zmq.Context()
+        self.frontend = self.ctx.socket(zmq.ROUTER)
+
+        try:
+            self.frontend.bind(self.bind_uri)
+            log.info('Servant listening at {}'.format(self.bind_uri))
+        except zmq.error.ZMQError as e:
+            exc = ServantBindError(
+                'Cannot bind to {}'
+                .format(self.bind_uri, e.strerror)
+            )
+            log.exception(exc)
+            raise exc
+
+        self.backend = self.ctx.socket(zmq.DEALER)
+        self.backend.bind(self.backend_uri)
 
     def _recv(self, socket):
         msg_id = []

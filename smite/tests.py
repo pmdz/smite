@@ -21,12 +21,14 @@ from smite.exceptions import (
 
 HOST = '127.0.0.1'
 PORT = 3000
+CONNECTION_URI = 'tcp://{}:{}'.format(HOST, PORT)
 
 
-def test_client_timeout():
+def client_timeout():
     timeout = 3
 
-    client = Client(HOST, PORT, default_timeout=timeout)
+    client = Client(default_timeout=timeout)
+    client.connect(CONNECTION_URI)
     msg = Message('dummy_method')
 
     raised = False
@@ -49,7 +51,7 @@ def test_client_timeout():
         raise DummyException
 
     servant = Servant({'dummy_method': dummy_method})
-    servant.bind(HOST, PORT)
+    servant.bind_tcp(HOST, PORT)
     # run servant in separate thread and wait 3 seconds for message
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
@@ -71,12 +73,13 @@ def test_client_timeout():
 
 def test_noreply_message():
     servant = Servant({'echo': lambda t: t})
-    servant.bind(HOST, PORT)
+    servant.bind_tcp(HOST, PORT)
 
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
-    client = Client(HOST, PORT)
+    client = Client()
+    client.connect(CONNECTION_URI)
     msg = Message('echo', uuid.uuid1().hex)
     client.send(msg, noreply=True)
 
@@ -99,7 +102,7 @@ def test_multiple_clients():
         return text
 
     servant = Servant({'short_echo': short_echo, 'long_echo': long_echo})
-    servant.bind(HOST, PORT)
+    servant.bind_tcp(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
@@ -108,7 +111,8 @@ def test_multiple_clients():
             self.method_name = method_name
 
         def __call__(self):
-            client = Client(HOST, PORT)
+            client = Client()
+            client.connect(CONNECTION_URI)
             txt = uuid.uuid4().hex
             msg = Message(self.method_name, txt)
             res = client.send(msg)
@@ -143,7 +147,7 @@ def test_proxy():
         return text
 
     servant = Servant({'echo': echo})
-    servant.bind(host, servant_port)
+    servant.bind_tcp(host, servant_port)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
@@ -158,7 +162,8 @@ def test_proxy():
 
         def __call__(self):
             time.sleep(.3)
-            client = Client(host, proxy_port)
+            client = Client()
+            client.connect_tcp(host, proxy_port)
             txt = uuid.uuid4().hex
             msg = Message(self.method_name, txt)
             res = client.send(msg)
@@ -193,11 +198,12 @@ def test_exception_response():
         raise DummyException(exc_message)
 
     servant = Servant({'raise_dummy_exc': raise_dummy_exc})
-    servant.bind(HOST, PORT)
+    servant.bind_tcp(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
-    client = Client(HOST, PORT)
+    client = Client()
+    client.connect(CONNECTION_URI)
 
     raised = False
     try:
@@ -222,11 +228,12 @@ def test_encrypted_messaging():
         return num1 * num2
 
     servant = SecureServant(methods=[multipl], secret_key=secret)
-    servant.bind(HOST, PORT)
+    servant.bind_tcp(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
-    client = Client(HOST, PORT, secret_key=secret)
+    client = Client(secret_key=secret)
+    client.connect_tcp(HOST, PORT)
     rep = client.send(Message('multipl', 2, 4))
     assert rep == 8
 
@@ -251,14 +258,13 @@ def test_secure_servant_ident():
         get_key_fn=get_key,
         methods=[multipl],
     )
-    servant.bind(HOST, PORT)
+    servant.bind_tcp(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
     def send_messages(secret_key, ident):
-        client = Client(
-            HOST, PORT, secret_key=secret_key, ident=ident
-        )
+        client = Client(secret_key=secret_key, ident=ident)
+        client.connect(CONNECTION_URI)
         for i in range(50):
             a = random.randint(1, 10)
             b = random.randint(1, 10)
@@ -286,7 +292,7 @@ def test_malicious_messages_non_secure():
         return text
 
     servant = Servant([echo])
-    servant.bind(HOST, PORT)
+    servant.bind_tcp(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
@@ -319,11 +325,12 @@ def test_malicious_messages_secure():
         return text
 
     servant = SecureServant(methods=[echo], secret_key=secret_1)
-    servant.bind(HOST, PORT)
+    servant.bind_tcp(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
-    client = Client(HOST, PORT, secret_key=secret_2)
+    client = Client(secret_key=secret_2)
+    client.connect(CONNECTION_URI)
     raised = False
     try:
         client.send(Message('multipl', 2, 4), 2)

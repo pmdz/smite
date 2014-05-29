@@ -17,16 +17,28 @@ log = logging.getLogger('smite.client')
 
 class Client(object):
 
-    def __init__(self, connection_uri, secret_key=None, ident=None,
+    def __init__(self, secret_key=None, ident=None,
                  default_timeout=5):
-        self.connection_uri = connection_uri
         self.ident = ident
         self._default_timeout = default_timeout
         self.cipher = AESCipher(secret_key) if secret_key is not None else None
-
-        self.ctx = zmq.Context()
-        self._create_socket()
         self._uuid_node = uuid.getnode()
+
+    def connect(self, connection_uri):
+        self.connection_uri = connection_uri
+        self._connect()
+
+    def connect_tcp(self, host, port):
+        self.connection_uri = 'tcp://{}:{}'.format(host, port)
+        self._connect()
+
+    def connect_inproc(self, address):
+        self.connection_uri = 'inproc://{}'.format(address)
+        self._connect()
+
+    def connect_ipc(self, address):
+        self.connection_uri = 'ipc://{}'.format(address)
+        self._connect()
 
     def send(self, msg, timeout=None, noreply=False):
         if not isinstance(msg, Message):
@@ -63,6 +75,10 @@ class Client(object):
             return True
         else:
             return self._wait_for_reply(timeout)
+
+    def _connect(self):
+        self.ctx = zmq.Context()
+        self._create_socket()
 
     def _wait_for_reply(self, timeout):
         sockets = dict(self._poll.poll(timeout * 1000))
