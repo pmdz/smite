@@ -17,10 +17,9 @@ log = logging.getLogger('smite.client')
 
 class Client(object):
 
-    def __init__(self, host, port, secret_key=None, ident=None,
+    def __init__(self, connection_uri, secret_key=None, ident=None,
                  default_timeout=5):
-        self.host = host
-        self.port = port
+        self.connection_uri = connection_uri
         self.ident = ident
         self._default_timeout = default_timeout
         self.cipher = AESCipher(secret_key) if secret_key is not None else None
@@ -94,10 +93,9 @@ class Client(object):
         self._poll = zmq.Poller()
         self._poll.register(self._socket, zmq.POLLIN)
         try:
-            connection_uri = 'tcp://{}:{}'.format(self.host, self.port)
-            self._socket.connect(connection_uri)
+            self._socket.connect(self.connection_uri)
         except Exception as e:
             raise ConnectionError(
                 'Could not connect to: {} ({})'
-                .format(connection_uri, e.message)
+                .format(self.connection_uri, e.message)
             )
