@@ -4,5 +4,8 @@ from smite.servant import (
     SecureServant,
     SecureServantIdent,
 )
-from smite.client import Client
+from smite.client import (
+    Client,
+    Rclient,
+)
 from smite.proxy import Proxy

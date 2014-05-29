@@ -41,6 +41,9 @@ class Client(object):
         self._connect()
 
     def send(self, msg, timeout=None, noreply=False):
+        return self._send(msg, timeout=None, noreply=False)
+
+    def _send(self, msg, timeout=None, noreply=False):
         if not isinstance(msg, Message):
             raise TypeError('\'msg\' argument should be type of \'Message\'')
         if timeout is None:
@@ -115,3 +118,14 @@ class Client(object):
                 'Could not connect to: {} ({})'
                 .format(self.connection_uri, e.message)
             )
+
+
+class RClient(Client):
+
+    def send(self, msg_name, *args, **kw):
+        msg = Message(msg_name, *args, **kw)
+        return self._send(msg)
+
+    def send_noreply(self, msg_name, *args, **kw):
+        msg = Message(msg_name, *args, **kw)
+        return self._send(msg, noreply=True)
