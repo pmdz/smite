@@ -5,7 +5,7 @@ requires = [
     'psutil==1.2.1',
     'pycrypto==2.6.1',
     'msgpack-python==0.4.0',
-    'pyzmq==14.0.1',
+    'pyzmq==14.3.0',
     'zope.dottedname==4.0.1',
 ]
 
@@ -13,7 +13,7 @@ requires = [
 setup(
     name='smite',
     packages=['smite'],
-    version='0.1a5',
+    version='0.1a6',
     install_requires=requires,
     author='pmdez',
     author_email='pawel@mewritescode.com',

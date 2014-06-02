@@ -153,9 +153,12 @@ class Servant(object):
         for thread in threads:
             thread.join()
 
+        self.frontend.setsockopt(zmq.LINGER, 0)
         self.frontend.close()
+        self.backend.setsockopt(zmq.LINGER, 0)
         self.backend.close()
         self.ctx.term()
+        del self.ctx, self.frontend, self.backend
 
     def stop(self):
         self._run = False
@@ -238,6 +241,7 @@ class Servant(object):
             socket.send(rep)
             increment_stat('processed_messages')
 
+        socket.setsockopt(zmq.LINGER, 0)
         socket.close()
 
     def _bind(self):
