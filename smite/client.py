@@ -40,12 +40,13 @@ class Client(object):
         self.connection_uri = 'ipc://{}'.format(address)
         self._connect()
 
-    def disconnect(self, linger=100):
+    def close(self, linger=100):
         # linger (miliseconds) specifies how long context will wait
         # for delivering all pending messages
         self._socket.setsockopt(zmq.LINGER, linger)
         self._socket.close()
         self.ctx.term()
+        del self.ctx, self._socket
 
     def send(self, msg, timeout=None, noreply=False):
         return self._send(msg, timeout=None, noreply=False)
