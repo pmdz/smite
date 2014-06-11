@@ -1,7 +1,10 @@
 Smite
 =====
 
-Little messaging library built on top of ZeroMQ
+Simple RPC-like messaging library based on ZMQ
+
+Basic example
+-------------
 
 ```python
 import smite
@@ -12,11 +15,12 @@ port = 3000
 def echo(text):
     return text
 
-servant = smite.Servant(methods={'echo': echo})
-servant.bind(host, port)
+servant = smite.Servant(handlers={'echo': echo})
+servant.bind_tcp(host, port)
 servant.run()
 
-client = smite.Client(host, port)
-msg = smite.Message('echo', 'foo')
-client.send(msg)  # 'foo'
+client = smite.Client()
+client.connect_tcp(host, port)
+client.send('echo', 'foobar')
+
 ```

@@ -1,18 +1,19 @@
+import os
 import uuid
 import time
 import random
 from threading import Thread
+from string import ascii_lowercase
 
 import zmq
 
-from smite.message import Message
-from smite.servant import (
+from smite import (
+    Client,
+    RClient,
     Servant,
-    SecureServant,
-    SecureServantIdent,
+    Proxy,
+    utils,
 )
-from smite.client import Client
-from smite.proxy import Proxy
 from smite.exceptions import (
     ClientTimeout,
     MessageException,
@@ -24,17 +25,23 @@ PORT = 3000
 CONNECTION_URI = 'tcp://{}:{}'.format(HOST, PORT)
 
 
-def client_timeout():
+def create_keys_dir():
+    rnd_str = ''.join([random.choice(ascii_lowercase) for _ in range(10)])
+    dir_ = '/tmp/smite_test_keys_{}'.format(rnd_str)
+    os.mkdir(dir_)
+    return dir_
+
+
+def test_client_timeout():
     timeout = 3
 
     client = Client(default_timeout=timeout)
     client.connect(CONNECTION_URI)
-    msg = Message('dummy_method')
 
     raised = False
     start = time.time()
     try:
-        client.send(msg)
+        client.send('dummy_method')
     except ClientTimeout:
         raised = True
 
@@ -58,7 +65,7 @@ def client_timeout():
     time.sleep(3)
     servant.stop()
     servant_thread.join()
-    client.disconnect()
+    client.close()
 
     for thread_stats in servant.stats['threads'].values():
         assert thread_stats['exceptions'] == 0
@@ -81,16 +88,64 @@ def test_noreply_message():
 
     client = Client()
     client.connect(CONNECTION_URI)
-    msg = Message('echo', uuid.uuid1().hex)
-    client.send(msg, noreply=True)
+    client.send('echo', args=(uuid.uuid1().hex,), noreply=True)
 
-    time.sleep(1)
+    time.sleep(2)
     assert servant.stats['summary']['received_messages'] == 1
     assert servant.stats['summary']['processed_messages'] == 1
 
     servant.stop()
     servant_thread.join()
-    client.disconnect()
+    client.close()
+
+
+def test_rclient():
+    ipc_name = 'smite-test-{}'.format(uuid.uuid1().hex)
+
+    servant = Servant({'echo': lambda t: t})
+    servant.bind_ipc(ipc_name)
+    servant.run(True)
+
+    msg_num = 10
+
+    client = RClient('ipc://{}'.format(ipc_name))
+    for _ in range(msg_num):
+        echo_txt = uuid.uuid1().hex
+        rep = client.send('echo', echo_txt)
+        assert rep == echo_txt
+
+    assert servant.stats['summary']['exceptions'] == 0
+    assert servant.stats['summary']['malicious_messages'] == 0
+    assert servant.stats['summary']['received_messages'] == msg_num
+    assert servant.stats['summary']['processed_messages'] == msg_num
+
+    client.close()
+    servant.stop()
+
+
+def test_rclient_noreply():
+    ipc_name = 'smite-test-{}'.format(uuid.uuid1().hex)
+
+    servant = Servant({'echo': lambda t: t})
+    servant.bind_ipc(ipc_name)
+    servant.run(True)
+
+    msg_num = 10
+
+    client = RClient('ipc://{}'.format(ipc_name))
+    for _ in range(msg_num):
+        echo_txt = uuid.uuid1().hex
+        client.send_noreply('echo', echo_txt)
+
+    time.sleep(1)
+
+    assert servant.stats['summary']['exceptions'] == 0
+    assert servant.stats['summary']['malicious_messages'] == 0
+    assert servant.stats['summary']['received_messages'] == msg_num
+    assert servant.stats['summary']['processed_messages'] == msg_num
+
+    client.close()
+    servant.stop()
 
 
 def test_multiple_clients():
@@ -105,21 +160,19 @@ def test_multiple_clients():
 
     servant = Servant({'short_echo': short_echo, 'long_echo': long_echo})
     servant.bind_tcp(HOST, PORT)
-    servant_thread = Thread(target=servant.run)
-    servant_thread.start()
+    servant.run(run_in_background=True)
 
     class send_msg(object):
-        def __init__(self, method_name):
-            self.method_name = method_name
+        def __init__(self, message_name):
+            self.message_name = message_name
 
         def __call__(self):
             client = Client()
             client.connect(CONNECTION_URI)
             txt = uuid.uuid4().hex
-            msg = Message(self.method_name, txt)
-            res = client.send(msg)
+            res = client.send(self.message_name, args=(txt,))
             assert res == txt
-            client.disconnect()
+            client.close()
 
     client_threads = []
     for method_name in ['short_echo', 'long_echo']:
@@ -135,10 +188,34 @@ def test_multiple_clients():
     assert servant.stats['summary']['exceptions'] == 0
 
     servant.stop()
-    servant_thread.join()
 
     for client_thread in client_threads:
         client_thread.join()
+
+
+def test_inappropriate_message_name():
+    raised = False
+
+    client = Client()
+    client.connect_ipc('foo')
+    try:
+        client.send(msg_name='__foo__')
+    except ValueError:
+        raised = True
+
+    assert raised
+
+
+def test_client_not_connected():
+    raised = False
+
+    client = Client()
+    try:
+        client.send(msg_name='foo')
+    except RuntimeError:
+        raised = True
+
+    assert raised
 
 
 def test_proxy():
@@ -160,18 +237,17 @@ def test_proxy():
     proxy_thread.start()
 
     class send_msg(object):
-        def __init__(self, method_name):
-            self.method_name = method_name
+        def __init__(self, message_name):
+            self.message_name = message_name
 
         def __call__(self):
             time.sleep(.3)
             client = Client()
             client.connect_tcp(host, proxy_port)
             txt = uuid.uuid4().hex
-            msg = Message(self.method_name, txt)
-            res = client.send(msg)
+            res = client.send(self.message_name, args=(txt,))
             assert res == txt
-            client.disconnect()
+            client.close()
 
     messages_num = 10
     client_threads = []
@@ -203,15 +279,14 @@ def test_exception_response():
 
     servant = Servant({'raise_dummy_exc': raise_dummy_exc})
     servant.bind_tcp(HOST, PORT)
-    servant_thread = Thread(target=servant.run)
-    servant_thread.start()
+    servant.run(True)
 
     client = Client()
     client.connect(CONNECTION_URI)
 
     raised = False
     try:
-        client.send(Message('raise_dummy_exc'))
+        client.send('raise_dummy_exc')
     except MessageException, e:
         assert e.message == exc_message
         raised = True
@@ -222,78 +297,10 @@ def test_exception_response():
     assert servant.stats['summary']['received_messages'] == 1
     assert servant.stats['summary']['exceptions'] == 1
     servant.stop()
-    servant_thread.join()
-    client.disconnect()
+    client.close()
 
 
-def test_encrypted_messaging():
-    secret = 'foobar'
-
-    def multipl(num1, num2):
-        return num1 * num2
-
-    servant = SecureServant(methods=[multipl], secret_key=secret)
-    servant.bind_tcp(HOST, PORT)
-    servant_thread = Thread(target=servant.run)
-    servant_thread.start()
-
-    client = Client(secret_key=secret)
-    client.connect_tcp(HOST, PORT)
-    rep = client.send(Message('multipl', 2, 4))
-    assert rep == 8
-
-    servant.stop()
-    servant_thread.join()
-    client.disconnect()
-
-
-def test_secure_servant_ident():
-    secrets = {
-        '38dce0e1b46d4ae089c6d425653b57a9': '1234s9v02',
-        'cbe74d25f5764dd8955d4ec137b7de4a': '95nx84mxw',
-        '663d817ba3bf4fa6a8f4214c78621294': '4n9t7us7l',
-    }
-
-    def get_key(ident):
-        return secrets[ident]
-
-    def multipl(num1, num2):
-        return num1 * num2
-
-    servant = SecureServantIdent(
-        get_key_fn=get_key,
-        methods=[multipl],
-    )
-    servant.bind_tcp(HOST, PORT)
-    servant_thread = Thread(target=servant.run)
-    servant_thread.start()
-
-    def send_messages(secret_key, ident):
-        client = Client(secret_key=secret_key, ident=ident)
-        client.connect(CONNECTION_URI)
-        for i in range(50):
-            a = random.randint(1, 10)
-            b = random.randint(1, 10)
-            expected_result = multipl(a, b)
-            rep = client.send(Message('multipl', a, b))
-            assert rep == expected_result
-        client.disconnect()
-
-    client_threads = []
-    for ident, key in secrets.items():
-        thread = Thread(target=send_messages, args=(key, ident))
-        client_threads.append(thread)
-        thread.start()
-
-    time.sleep(1)
-    for t in client_threads:
-        t.join()
-
-    servant.stop()
-    servant_thread.join()
-
-
-def test_malicious_messages_non_secure():
+def test_malicious_messages():
 
     def echo(text):
         return text
@@ -324,33 +331,67 @@ def test_malicious_messages_non_secure():
     servant_thread.join()
 
 
-def test_malicious_messages_secure():
-    secret_1 = 'foo'
-    secret_2 = 'bar'
+def test_secure_messaging():
+    keys_dir = create_keys_dir()
 
-    def echo(text):
+    def short_echo(text):
+        time.sleep(1)
         return text
 
-    servant = SecureServant(methods=[echo], secret_key=secret_1)
+    def long_echo(text):
+        time.sleep(2)
+        return text
+
+    send_msgs = ['short_echo', 'long_echo']
+
+    # generate keys for clients
+    client_secrets = [
+        utils.create_certificates(keys_dir, 'client-{}'.format(i))[1]
+        for i in range(2)
+    ]
+
+    # generate keys for servant
+    servant_public, servant_secret = (
+        utils.create_certificates(keys_dir, 'servant')
+    )
+
+    servant = Servant({'short_echo': short_echo, 'long_echo': long_echo})
+    servant.enable_security(
+        os.path.join(keys_dir, 'public_keys'), servant_secret,
+    )
     servant.bind_tcp(HOST, PORT)
     servant_thread = Thread(target=servant.run)
     servant_thread.start()
 
-    client = Client(secret_key=secret_2)
-    client.connect(CONNECTION_URI)
-    raised = False
-    try:
-        client.send(Message('multipl', 2, 4), 2)
-    except ClientTimeout:
-        raised = True
+    class send_msg(object):
+        def __init__(self, message_name, client_secret):
+            self.message_name = message_name
+            self.client_secret = client_secret
 
-    assert raised
+        def __call__(self):
+            client = Client()
+            client.enable_security(self.client_secret, servant_public)
+            client.connect(CONNECTION_URI)
+            txt = uuid.uuid4().hex
+            res = client.send(self.message_name, args=(txt,))
+            assert res == txt
+            client.close()
 
-    time.sleep(.2)
-    assert servant.stats['summary']['received_messages'] == 1
-    assert servant.stats['summary']['processed_messages'] == 0
-    assert servant.stats['summary']['malicious_messages'] == 1
+    client_threads = []
+    for client_secret, method_name in zip(client_secrets, send_msgs):
+        thread = Thread(target=send_msg(method_name, client_secret))
+        client_threads.append(thread)
+        thread.start()
+
+    # long echo takes 2 seconds
+    time.sleep(2.5)
+
+    assert servant.stats['summary']['received_messages'] == 2
+    assert servant.stats['summary']['processed_messages'] == 2
+    assert servant.stats['summary']['exceptions'] == 0
 
     servant.stop()
     servant_thread.join()
-    client.disconnect()
+
+    for client_thread in client_threads:
+        client_thread.join()

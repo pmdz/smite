@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
+import time
 import logging
+from threading import Event
 
 import zmq
 
@@ -10,18 +12,18 @@ log = logging.getLogger('smite.proxy')
 
 
 class Proxy(object):
+
     def __init__(self, pass_host, pass_port):
         self.pass_uri = 'tcp://{}:{}'.format(pass_host, pass_port)
 
     def bind(self, host, port):
         frontend_uri = 'tcp://{}:{}'.format(host, port)
-
         self.ctx = zmq.Context()
-
         self.frontend = self.ctx.socket(zmq.ROUTER)
+
         try:
             self.frontend.bind(frontend_uri)
-            log.debug('proxy listening on {}'.format(frontend_uri))
+            log.info('Proxy listening on {}'.format(frontend_uri))
         except zmq.error.ZMQError as e:
             exc = ProxyBindError(
                 'Cannot bind to {} ({})'
@@ -33,7 +35,7 @@ class Proxy(object):
         self.backend = self.ctx.socket(zmq.DEALER)
         try:
             self.backend.connect(self.pass_uri)
-            log.debug('proxy forwarding to {}'.format(self.pass_uri))
+            log.info('Proxy forwarding to {}'.format(self.pass_uri))
         except zmq.error.ZMQError as e:
             exc = ProxyBindError(
                 'Cannot bind to {} ({})'
@@ -43,15 +45,14 @@ class Proxy(object):
             raise exc
 
     def run(self):
-        self._run = True
+        self._stop_event = Event()
 
         poll = zmq.Poller()
         poll.register(self.frontend, zmq.POLLIN)
         poll.register(self.backend,  zmq.POLLIN)
 
-        while self._run:
+        while not self._stop_event.is_set():
             sockets = dict(poll.poll(1000))
-            log.debug(sockets)
 
             if self.frontend in sockets:
                 if sockets[self.frontend] == zmq.POLLIN:
@@ -78,4 +79,7 @@ class Proxy(object):
         self.ctx.term()
 
     def stop(self):
-        self._run = False
+        self._stop_event.set()
+        while not self.ctx.closed:
+            time.sleep(.2)
+        del self.ctx, self.frontend, self.backend
