@@ -3,7 +3,7 @@ Smite
 
 Simple RPC-like messaging library based on ZMQ.
 
-For more examples please take a look at tests.py.
+For more examples please take a look at tests.py file, which contains integration tests.
 
 Basic example
 -------------
