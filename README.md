@@ -21,6 +21,6 @@ servant.run()
 
 client = smite.Client()
 client.connect_tcp(host, port)
-client.send('echo', 'foobar')
+client.send(msg_name='echo', args=('foobar',))
 
 ```
