@@ -1,2 +1,4 @@
 smite.egg-info/*
 *.pyc
+.coverage
+.tags
