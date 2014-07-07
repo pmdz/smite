@@ -123,6 +123,33 @@ def test_rclient():
     servant.stop()
 
 
+def test_default_handler():
+    ipc_name = 'smite-test-{}'.format(uuid.uuid1().hex)
+    default_handler = lambda t: t
+
+    servant = Servant()
+    servant.set_default_handler(default_handler)
+    servant.bind_ipc(ipc_name)
+    servant.run(True)
+
+    msg_num = 10
+
+    client = RClient('ipc://{}'.format(ipc_name))
+    for _ in range(msg_num):
+        msg_txt = uuid.uuid1().hex
+        random_msg_name = uuid.uuid1().hex
+        rep = client.send(random_msg_name, msg_txt)
+        assert rep == msg_txt
+
+    assert servant.stats['summary']['exceptions'] == 0
+    assert servant.stats['summary']['malicious_messages'] == 0
+    assert servant.stats['summary']['received_messages'] == msg_num
+    assert servant.stats['summary']['processed_messages'] == msg_num
+
+    client.close()
+    servant.stop()
+
+
 def test_rclient_noreply():
     ipc_name = 'smite-test-{}'.format(uuid.uuid1().hex)
 

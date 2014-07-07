@@ -77,7 +77,7 @@ class Servant(object):
             elif hasattr(handler, '__class__'):
                 name = handler.__class__.__name__
 
-        if name in self._handlers:
+        if name in self._handlers and name != '__default__':
             raise ValueError('Method named \'{}\' is already registered'
                              .format(name))
 
