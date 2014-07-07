@@ -1,7 +1,9 @@
 Smite
 =====
 
-Simple RPC-like messaging library based on ZMQ
+Simple RPC-like messaging library based on ZMQ.
+
+For more examples please take a look at tests.py file, which contains integration tests.
 
 Basic example
 -------------
@@ -21,6 +23,6 @@ servant.run()
 
 client = smite.Client()
 client.connect_tcp(host, port)
-client.send('echo', 'foobar')
+client.send(msg_name='echo', args=('foobar',))
 
 ```
