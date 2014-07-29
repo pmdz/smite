@@ -35,11 +35,13 @@ log = logging.getLogger('smite.servant')
 
 class Servant(object):
 
-    def __init__(self, handlers=None, threads_num=DEFAULT_THREADS_NUM):
+    def __init__(self, handlers=None, threads_num=DEFAULT_THREADS_NUM,
+                 message_extractors=()):
         self._handlers = {
             '__echo__': lambda n: n,
             '__default__': None,
         }
+        self._message_extractors = message_extractors
 
         if isinstance(handlers, (list, tuple)):
             map(self.register_handler, handlers)
@@ -135,7 +137,7 @@ class Servant(object):
     def _main_routine(self):
         poll = zmq.Poller()
         poll.register(self.frontend, zmq.POLLIN)
-        poll.register(self.backend,  zmq.POLLIN)
+        poll.register(self.backend, zmq.POLLIN)
 
         while not self._stop_event.is_set():
             sockets = dict(poll.poll(1000))
@@ -297,6 +299,8 @@ class Servant(object):
                 msg_id.append(recv)
             else:
                 msg = recv
+                for extractor in self._message_extractors:
+                    msg = extractor(msg)
                 return msg_id, msg
 
     def _start_auth(self):

@@ -185,27 +185,58 @@ def test_multiple_clients():
         time.sleep(2)
         return text
 
-    servant = Servant({'short_echo': short_echo, 'long_echo': long_echo})
+    called = {
+        'extract_one': False,
+        'extract_two': False,
+        'process_one': False,
+        'process_two': False,
+    }
+
+    def extract_one(msg):
+        called['extract_one'] = True
+        # 'foo:bar:real_message' -> 'bar:real_message'
+        return msg.split(':', 1)[1]
+
+    def extract_two(msg):
+        called['extract_two'] = True
+        # 'bar:real_message' -> 'real_message'
+        return msg.split('-', 1)[1]
+
+    servant = Servant(
+        {'short_echo': short_echo, 'long_echo': long_echo},
+        message_extractors=(extract_one, extract_two),
+    )
     servant.bind_tcp(HOST, PORT)
     servant.run(run_in_background=True)
 
-    class send_msg(object):
-        def __init__(self, message_name):
-            self.message_name = message_name
+    def process_one(msg):
+        called['process_one'] = True
+        return 'bar-{}'.format(msg)
 
-        def __call__(self):
-            client = Client()
-            client.connect(CONNECTION_URI)
-            txt = uuid.uuid4().hex
-            res = client.send(self.message_name, args=(txt,))
-            assert res == txt
-            client.close()
+    def process_two(msg):
+        called['process_two'] = True
+        return 'foo:{}'.format(msg)
+
+    def send_msg(msg_name):
+        client = Client(message_processors=(process_one, process_two))
+        client.connect(CONNECTION_URI)
+
+        msg_txt = uuid.uuid4().hex
+        res = client.send(msg_name, args=(msg_txt,))
+        assert res == msg_txt
+        client.close()
 
     client_threads = []
-    for method_name in ['short_echo', 'long_echo']:
-        thread = Thread(target=send_msg(method_name))
-        client_threads.append(thread)
-        thread.start()
+
+    # send short_echo
+    thread = Thread(target=send_msg('short_echo'))
+    client_threads.append(thread)
+    thread.start()
+
+    # send long_echo
+    thread = Thread(target=send_msg('long_echo'))
+    client_threads.append(thread)
+    thread.start()
 
     # long echo takes 2 seconds
     time.sleep(2.5)
@@ -213,6 +244,9 @@ def test_multiple_clients():
     assert servant.stats['summary']['received_messages'] == 2
     assert servant.stats['summary']['processed_messages'] == 2
     assert servant.stats['summary']['exceptions'] == 0
+
+    for was_called in called.values():
+        assert was_called
 
     servant.stop()
 

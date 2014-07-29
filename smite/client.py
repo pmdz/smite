@@ -15,9 +15,10 @@ log = logging.getLogger('smite.client')
 
 class Client(object):
 
-    def __init__(self, default_timeout=5):
+    def __init__(self, default_timeout=5, message_processors=()):
         self._default_timeout = default_timeout
         self._security_enabled = False
+        self._message_processors = message_processors
 
     def enable_security(self, client_secret_file, server_public_file):
         self._client_secret_file = client_secret_file
@@ -74,6 +75,8 @@ class Client(object):
         log.debug('Sending message: {}'.format(msg))
 
         msg = msgpack.packb(msg)
+        for processor in self._message_processors:
+            msg = processor(msg)
         self._socket.send(msg)
 
         if noreply:
@@ -136,8 +139,9 @@ class Client(object):
 
 class RClient(Client):
 
-    def __init__(self, connection_uri, default_timeout=5):
-        super(RClient, self).__init__(default_timeout)
+    def __init__(self, connection_uri, default_timeout=5,
+                 message_processors=()):
+        super(RClient, self).__init__(default_timeout, message_processors)
         self.connection_uri = connection_uri
         self._connect()
 
