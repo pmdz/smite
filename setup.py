@@ -2,16 +2,16 @@ from setuptools import setup
 
 
 requires = [
-    'msgpack-python==0.4.2',
-    'pyzmq==14.3.0',
-    'zope.dottedname==4.0.1',
+    'msgpack-python==0.4.5',
+    'pyzmq==14.5.0',
+    'zope.dottedname==4.1.0',
 ]
 
 
 setup(
     name='smite',
     packages=['smite'],
-    version='0.2a3',
+    version='0.2a4',
     install_requires=requires,
     author='pmdez',
     author_email='pawel@mewritescode.com',
